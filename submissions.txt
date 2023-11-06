@@ -1,0 +1,26 @@
+> Sub_id: sub_1
+Rs_number: rs4646116
+Enzymes: ALL
+
+> Sub_id: sub_2
+Enzymes: ALL
+Sequence: GTTCCCAATAAAAGTGACTCTCAGCGGCCTCAATGCTCCCAGTGCTATTC
+SNP_position: 26
+Alt_allele: A
+
+> Sub_id: sub_3
+Enzymes: ALL
+Sequence: GTTCCCAATAAAAGTGACTCTCAGCGG[A/G]CCTCAATGCTCCCAGTGCTATTC
+
+> Sub_id: sub_4
+Chromosome: X
+SNP_position: 1232412
+Alt_allele: C
+
+> Sub_id: sub_5
+Rs_number: rs139052738
+
+> Sub_id: sub_6
+Sequence: GTTCCCAATAAAAGTGACTAAGCTTGGCCTCAATGCTCCCAGTGCTATTC
+Alt_allele: C
+SNP_position: 20
