@@ -1,6 +1,6 @@
 import sys
-import os
 import subprocess
+import argparse
 
 try:
     import Bio 
@@ -19,20 +19,29 @@ finally:
     from Bio import Entrez, SeqIO
 
 #--------------------------------------------------------------------------------
-def read_txt(file_path):
+def read_txt(file_path):    
     """
-    Read DNA sequence submissions from a text file and parse the information.
-
-    The file should contain submissions formatted with lines starting with '>'
-    and four elements (Enzymes, Sequence, SNP_position, Alt_allele) for each submission.
+    Reads a text file containing submission data and stores each submission as a dictionary in a list.
 
     Parameters:
-    - file_path (str): The path to the text file containing DNA sequence submissions.
+    - file_path (str): The path to the input text file.
 
     Returns:
-    list: A list of dictionaries, each representing a DNA sequence submission.
-          Each dictionary contains 'sub_id', 'Enzymes', 'Sequence', 'SNP_position', and 'Alt_allele' keys.
-    """    
+    list: A list of dictionaries, where each dictionary represents a submission with the following keys:
+        - 'sub_id' (str): Submission ID.
+        - 'enzymes' (list): List of enzymes.
+        - 'sequence' (str): DNA sequence.
+        - 'snp_pos' (int): SNP position.
+        - 'mut' (str): Alternate allele.
+        - 'rs_num' (str): Rs number.
+        - 'chrom' (str): Chromosome.
+
+    Example:
+    ```python
+    file_path = "path/to/your/file.txt"
+    submissions = read_txt(file_path)
+    ```
+    """
     data = []
     with open(file_path, 'r') as file:
         entry = {}
@@ -62,57 +71,56 @@ def read_txt(file_path):
 
 
 #--------------------------------------------------------------------------------
-def highlight_mutation(sequence, mutation_position, color='\033[91m', reset='\033[0m'):
-    """
-    Highlight the mutation position in a DNA sequence.
-
-    Parameters:
-    - sequence (str): The DNA sequence.
-    - mutation_position (int): The position of the mutation.
-    - color (str, optional): ANSI escape code for highlighting color. Default is red.
-    - reset (str, optional): ANSI escape code to reset color. Default is to reset.
-
-    Returns:
-    str: The sequence with the mutation position highlighted.
-    """
-    if mutation_position < 0 or mutation_position >= len(sequence):
-        raise ValueError("Invalid mutation position")
-
-    return (
-        sequence[:mutation_position]
-        + f"{color}{sequence[mutation_position]}{reset}"
-        + sequence[mutation_position + 1:])
-
-
-#--------------------------------------------------------------------------------
 def replace_char_at_index(string: str ,
                           index: int,
                           char: str):
     """
-    Replace the character at the specified index in the given string.
+    Replaces a character at a specified index in the given string with a new character.
 
     Parameters:
     - string (str): The input string.
-    - index (int): The index at which the character should be replaced.
-    - char (str): The character to substitute at the specified index.
+    - index (int): The index of the character to be replaced (1-based index).
+    - char (str): The new character to replace the existing one.
 
     Returns:
-    str: The modified string with the character replaced at the specified index.
+    str: The updated string with the character replaced.
+
+    Example:
+    ```python
+    input_str = "example"
+    updated_str = replace_char_at_index(input_str, 3, "x")
+    # Result: "exxmple"
+    ```
     """
     return string[:index-1] + char + string[index:]
 
 
 #--------------------------------------------------------------------------------
-def insert_char_at_index(string: str ,
-                          index: int,
-                          char: str):
-    
-    return string[:index-1] + char + string[index-1:]
-
-
-#--------------------------------------------------------------------------------
 def get_snps_flank(rs_number, flank_length=40):
-    Entrez.email = 'hosseini7798@gmail.com'
+    """
+    Retrieves the flank region sequence of a SNP based on its rs_number.
+
+    Parameters:
+    - rs_number (str): The rs_number of the SNP.
+    - flank_length (int): The length of the flank region on either side of the SNP (default is 40).
+
+    Returns:
+    tuple: A tuple containing:
+        - str: The flank region sequence.
+        - int: The total length of the retrieved sequence (including both flanks).
+        - str: The alternate allele introduced by the SNP.
+
+    Example:
+    ```python
+    rs_number = "rs123456"
+    flank_sequence, total_length, spdi = get_snps_flank(rs_number, flank_length=50)
+    # Result: ("ATCG...TGC", 101, "T")
+    ```
+    
+    Note:
+    - Requires the Biopython library for sequence retrieval.
+    - Ensure that the Entrez module from Biopython is configured before using this function.
+    """
     snp_id = rs_number[2:]
     handle = Entrez.esummary(db="snp", id=snp_id)
     record = Entrez.read(handle)
@@ -132,6 +140,31 @@ def get_snps_flank(rs_number, flank_length=40):
 
 #--------------------------------------------------------------------------------
 def get_loc_flank(chromosome, location, flank_length=40):
+    """
+    Retrieves the flank region sequence of a nucleotide based on its chromosome and location.
+
+    Parameters:
+    - chromosome (str, int): The chromosome identifier (e.g., '1', 'X', 'Y').
+    - location (int): The position of the nucleotide on the chromosome.
+    - flank_length (int): The length of the flank region on either side of the nucleotide (default is 40).
+
+    Returns:
+    tuple: A tuple containing:
+        - str: The flank region sequence.
+        - int: The total length of the retrieved sequence (including both flanks).
+
+    Example:
+    ```python
+    chromosome = 'X'
+    nucleotide_location = 123456
+    flank_sequence, total_length = get_loc_flank(chromosome, nucleotide_location, flank_length=50)
+    # Result: ("ATCG...TGC", 101)
+    ```
+    
+    Note:
+    - Requires the Biopython library for sequence retrieval.
+    - Ensure that the Entrez module from Biopython is configured before using this function.
+    """
     chrom_id = {'1': 568815597,'2': 568815596,'3': 568815595,'4': 568815594,'5': 568815593,
                 '6': 568815592,'7': 568815591,'8': 568815590,'9': 568815589,'10': 568815588,
                 '11': 568815587,'12': 568815586,'13': 568815585,'14': 568815584,'15': 568815583,
@@ -149,19 +182,32 @@ def get_loc_flank(chromosome, location, flank_length=40):
 #--------------------------------------------------------------------------------
 def generate_possible_RFLP_seq_variants(sequence, mut, snp_pos, enzyme):
     """
-    Generate a set of DNA sequence variants near a specified SNP position.
-
-    This function takes a reference DNA sequence, SNP position, and enzyme name,
-    and returns a set of new DNA sequences with variations introduced near the SNP position.
+    Generates a list of candidate sequences with potential Restriction Fragment Length Polymorphism (RFLP) variants.
 
     Parameters:
-    - sequence (str): The reference DNA sequence.
-    - snp_pos (int): The position of the Single Nucleotide Polymorphism (SNP).
-    - enzyme (str): The name of the enzyme (e.g., 'EcoRI') to determine cutting sites.
+    - sequence (str): The original DNA sequence containing the SNP.
+    - mut (str): The alternate allele introduced by the SNP.
+    - snp_pos (int): The position of the SNP on the sequence.
+    - enzyme (str): The name of the restriction enzyme.
 
     Returns:
-    set: A set of DNA sequences with variations near the specified SNP position.
-    """
+    list: A list of candidate sequences that may exhibit RFLP variations.
+
+    Example:
+    ```python
+    original_sequence = "AAATTCCC" 
+    alternate_allele = "C" 
+    snp_position = 4       # --> "AAACTCCC"
+    enzyme_name = "EcoRI"  # site: "GAATTC" --> Cannot differentiate between ref_seq and mut_seq
+    rflp_variants = generate_possible_RFLP_seq_variants(original_sequence, alternate_allele, snp_position, enzyme_name)
+    # Result: ['GAATTCCC'] # --> Now it can be detected by EcoRI
+    ```
+
+    Note:
+    - Requires the Biopython library for enzyme-related operations.
+    - Ensure that the Restriction module from Biopython is configured before using this function.
+    - The enzyme parameter should be provided as a string (e.g., 'EcoRI').
+    """    
     enzyme = getattr(Restriction, enzyme)
     near_len = len(enzyme.site)
     new_seqs = set()
@@ -178,40 +224,75 @@ def generate_possible_RFLP_seq_variants(sequence, mut, snp_pos, enzyme):
 
 
 #--------------------------------------------------------------------------------
-def is_RFLP(sequence, mut, snp_pos, enzyme, report=False):
+def is_RFLP(sequence, mut, snp_pos, enzyme):
     """
-    Determine whether an enzyme can detect a difference between a reference DNA sequence and a mutant sequence.
-
-    This function takes a reference DNA sequence, a mutation allele, SNP position, enzyme name,
-    and an optional report flag. It checks if the enzyme can act on either the reference sequence
-    or the mutant sequence, indicating a detectable difference.
+    Determines whether a given restriction enzyme can catalyze either the reference or mutant sequence
+    and makes a distinction between them based on Restriction Fragment Length Polymorphism (RFLP).
 
     Parameters:
-    - sequence (str): The reference DNA sequence.
-    - mut (str): The mutation allele to replace at the SNP position.
-    - snp_pos (int): The position of the Single Nucleotide Polymorphism (SNP).
-    - enzyme (str): The name of the enzyme (e.g., 'EcoRI') to check for recognition sites.
-    - report (bool, optional): If True, generate a report (not implemented yet).
+    - sequence (str): The original DNA sequence.
+    - mut (str): The alternate allele introduced by a SNP.
+    - snp_pos (int): The position of the SNP on the sequence.
+    - enzyme (str): The name of the restriction enzyme.
 
     Returns:
-    bool: True if the enzyme can detect a difference, False otherwise.
-    """
+    int: Returns -1 if the SNP sequence is cleaved, 1 if the reference sequence is cleaved, and 0 if none of them are cleaved.
+
+    Example:
+    ```python
+    original_sequence = "GAATTCCCC"
+    alternate_allele = "G"
+    snp_position = 4
+    enzyme_name = "EcoRI"  # site: "GAATTC"
+    cleavage_result = is_RFLP(original_sequence, alternate_allele, snp_position, enzyme_name)
+    # Result: 1 # Because EcoRI can catalyze the original_sequence but cannot catalyze the mutant sequence
+    ```
+
+    Note:
+    - Requires the Biopython library for enzyme-related operations.
+    - Ensure that the Restriction module from Biopython is configured before using this function.
+    - The enzyme parameter should be provided as a string (e.g., 'EcoRI').
+    """  
     mut_sequence = replace_char_at_index(sequence, snp_pos, mut)
     ref_seq = Seq(sequence)
     mut_seq = Seq(mut_sequence)
     enzyme = getattr(Restriction, enzyme)
     ref_res = enzyme.search(ref_seq)
     mut_res = enzyme.search(mut_seq)
-
-    if report:
-        # Placeholder for generating a report, not implemented yet
-        pass
-    
     return len(ref_res) - len(mut_res)
 
 
 #--------------------------------------------------------------------------------
 def alignment(seq1, seq2):
+    """
+    Creates a representation of the alignment between two sequences with a single SNP difference.
+
+    Parameters:
+    - seq1 (str): The first DNA sequence.
+    - seq2 (str): The second DNA sequence.
+
+    Returns:
+    list: A list containing the alignment representation with one SNP difference.
+        - The SNP representation with the position and substitution (e.g., "25A>T").
+        - The first DNA sequence.
+        - The alignment indicator (| for matching, - for SNP position).
+        - The second DNA sequence.
+
+    Example:
+    ```python
+    sequence1 = "AATTCGAGAATGTA"
+    sequence2 = "AATTCGTGAATGTA"
+    alignment_result = alignment(sequence1, sequence2)
+    # Result: ["7A>T",
+    #          "AATTCGAGAATGTA",
+    #          "||||||-|||||||",
+    #          "AATTCGTGAATGTA"]
+    ```
+    
+    Note:
+    - The function assumes that the sequences have a single SNP difference.
+    - The alignment indicator uses '|' for matching positions and '-' for SNP position.
+    """
     l2 = '|'*len(seq1)
     for idx, (n1, n2) in enumerate(zip(seq1, seq2)):
         if n1!=n2:
@@ -223,18 +304,35 @@ def alignment(seq1, seq2):
 #--------------------------------------------------------------------------------
 def snp_location(sequence, mut, snp_pos):
     """
-    Display the reference and mutant DNA sequences with the position of a Single Nucleotide Polymorphism (SNP).
-
-    This function takes a reference DNA sequence, a mutation allele, and the SNP position.
-    It prints the reference and mutant sequences with an arrow indicating the position of the SNP.
+    Displays the reference and mutant DNA sequences with the position of a Single Nucleotide Polymorphism (SNP).
 
     Parameters:
-    - sequence (str): The reference DNA sequence.
-    - mut (str): The mutation allele to replace at the SNP position.
-    - snp_pos (int): The position of the Single Nucleotide Polymorphism (SNP).
+    - sequence (str): The original DNA sequence.
+    - mut (str): The alternate allele introduced by the SNP.
+    - snp_pos (int): The position of the SNP on the sequence.
 
     Returns:
-    None
+    list: A list containing the representation of the SNP location.
+        - The SNP representation with the position and substitution (e.g., "25A>T").
+        - The reference DNA sequence.
+        - The alignment indicator (| for matching, - for SNP position).
+        - The mutant DNA sequence.
+
+    Example:
+    ```python
+    original_sequence = "AATTCGAGAATGTA"
+    alternate_allele = "T"
+    snp_position = 7
+    snp_repr = snp_location(original_sequence, alternate_allele, snp_position)
+    # Result: ["7A>T",
+    #          "AATTCGAGAATGTA",
+    #          "||||||-|||||||",
+    #          "AATTCGTGAATGTA"]
+    ```
+
+    Note:
+    - The function assumes a Single Nucleotide Polymorphism (SNP) at the specified position.
+    - The alignment indicator uses '|' for matching positions and '-' for the SNP position.
     """
     mut_sequence = replace_char_at_index(sequence, snp_pos, mut)
     l1 = sequence
@@ -246,19 +344,33 @@ def snp_location(sequence, mut, snp_pos):
 #--------------------------------------------------------------------------------
 def restriction_sites(sequence, enzyme):
     """
-    Display the restriction enzyme sites and cleaved DNA sequence.
-
-    This function takes a DNA sequence, an enzyme name, and an optional flag for returning the results.
-    It prints or returns a representation of the DNA sequence with highlighted restriction enzyme sites and cleaved positions.
+    Displays the locations of restriction enzyme sites and the cleaved DNA sequence.
 
     Parameters:
-    - sequence (str): The DNA sequence.
-    - enzyme (str): The name of the enzyme (e.g., 'EcoRI') to check for recognition sites.
-    - returning (bool, optional): If True, return a list of strings representing the sequence. Default is False.
+    - sequence (str): The DNA sequence to be analyzed.
+    - enzyme (str): The name of the restriction enzyme.
 
     Returns:
-    None or list: If returning is True, returns a list of strings representing the sequence.
-    If returning is False, prints the sequence representation.
+    list: A list containing the representation of restriction enzyme sites and cleaved sequence.
+        - The cleaved DNA sequence with spaces separating the cleavage sites.
+        - The alignment indicator with symbols representing cleavage sites.
+        - The reverse complement of the cleaved DNA sequence with spaces separating the cleavage sites.
+
+    Example:
+    ```python
+    dna_sequence = "AAGAATTCCC"
+    enzyme_name = "EcoRI"
+    restriction_repr = restriction_sites(dna_sequence, enzyme_name)
+    # Result: ['AAG AATTCCC',
+    #          '|||⌃---⌄|||',
+    #          'TTCTTAA GGG']
+    ```
+
+    Note:
+    - Requires the Biopython library for enzyme-related operations.
+    - Ensure that the Restriction module from Biopython is configured before using this function.
+    - The enzyme parameter should be provided as a string (e.g., 'EcoRI').
+    - The alignment indicator with symbols representing cleavage sites ('⥯' for blunt cleavage, '⌃-⌄' for overhang sticky end).
     """
     enzyme = getattr(Restriction, enzyme)
     seq = Seq(sequence)
@@ -291,6 +403,40 @@ def restriction_sites(sequence, enzyme):
 
 #--------------------------------------------------------------------------------
 def seq_variants_RFLP(sequence, mut, snp_pos, enzyme):
+    """
+    Stores the results of RFLP-related analyses in a dictionary.
+
+    Parameters:
+    - sequence (str): The original DNA sequence.
+    - mut (str): The alternate allele introduced by a SNP.
+    - snp_pos (int): The position of the SNP on the sequence.
+    - enzyme (str): The name of the restriction enzyme.
+
+    Returns:
+    dict: A dictionary containing the results of various analyses:
+        - 'ref_seq_RFLP' (int): Result of is_RFLP for the reference sequence (-1, 0, 1).
+        - 'snp_res' (list): Result of snp_location with the SNP representation and aligned sequences.
+        - 'restriction_sites_res' (list): Result of restriction_sites with cleaved sequence representation.
+        - 'ref_new_align' (list): Result of alignment for the reference and a new variant sequence.
+
+    Example:
+    ```python
+    original_sequence = "GAATTCCCC"
+    alternate_allele = "G"
+    snp_position = 4
+    enzyme_name = "EcoRI"  # site: "GAATTC"
+    analysis_results = seq_variants_RFLP(original_sequence, alternate_allele, snp_position, enzyme_name)
+    # Result: {'ref_seq_RFLP': 1,
+               'snp_res': ["4A>G", "GAATTCCCC", '|||-|||||', "GAAGTCCCC"],
+               'restriction_sites_res': ['AAG AATTCCC', '|||⌃---⌄|||','TTCTTAA GGG']}
+    ```
+
+    Note:
+    - Requires the Biopython library for enzyme-related operations.
+    - Ensure that the Restriction module from Biopython is configured before using this function.
+    - The enzyme parameter should be provided as a string (e.g., 'EcoRI').
+    - The 'ref_seq_RFLP' result indicates whether the reference sequence is cleaved (-1) or not (0).
+    """
     res = {}
     res['ref_seq_RFLP'] = is_RFLP(sequence, mut, snp_pos, enzyme)
     if res['ref_seq_RFLP']:
@@ -317,6 +463,34 @@ def seq_variants_RFLP(sequence, mut, snp_pos, enzyme):
 
 #--------------------------------------------------------------------------------
 def prepare_submission(sub):
+    """
+    Prepares the submission data for further analysis.
+
+    Parameters:
+    - sub (dict): The submission data, typically obtained from the read_txt function.
+
+    Returns:
+    dict: A dictionary containing the prepared submission data with the following keys:
+        - 'sub_id' (str): Submission identifier.
+        - 'enzymes' (list): List of enzymes for analysis.
+        - 'sequence' (str): DNA sequence for analysis.
+        - 'snp_pos' (int): Position of the SNP on the sequence.
+        - 'mut' (str): Alternate allele introduced by the SNP.
+
+    Example:
+    ```python
+    submission_data = {'sub_id': 'sub_1', 'enzymes': ['EcoRI', 'HindIII'], 'rs_num': 'rs123456'}
+    prepared_data = prepare_submission(submission_data)
+    # Result: {'sub_id': 'sub_1', 'enzymes': ['EcoRI', 'HindIII'], 'sequence': 'ATCG...TGC', 'snp_pos': 25, 'mut': 'A'}
+    ```
+
+    Note:
+    - The function extracts information from the provided submission data and organizes it for further analysis.
+    - If 'rs_num' is provided, it retrieves the sequence, SNP position, and mutation from the NCBI SNP database.
+    - If 'sequence' is provided, it handles cases where the SNP information is embedded in the sequence.
+    - If 'chrom' and 'snp_pos' are provided, it retrieves the sequence and SNP position from the specified chromosome location.
+    - If 'enzymes' is ['ALL'], it includes all enzymes with a cleavage frequency less than 1024.
+    """
     sub_id = sub['sub_id']
     enzymes = sub.get('enzymes', ['ALL'])
     if enzymes[0] == 'ALL':
@@ -347,6 +521,27 @@ def prepare_submission(sub):
 
 #--------------------------------------------------------------------------------
 def report_submission(sub):
+    """
+    Generates a report as a string for all obtained results.
+
+    Parameters:
+    - results (dict): Dictionary containing results obtained from various analyses.
+
+    Returns:
+    str: A formatted report string summarizing the analysis results.
+
+    Example:
+    ```python
+    analysis_results = {'ref_seq_RFLP': -1, 'snp_res': ["4A>G", "GAATTCCCC", '|||-|||||', "GCAATCCCC"], ...}
+    report_string = make_report(analysis_results)
+    # Result: "Analysis Results:\nRef Seq RFLP: -1\nSNP Location: 4A>G\n..."
+    ```
+
+    Note:
+    - The function takes a dictionary of results and formats them into a human-readable report.
+    - The report includes information such as RFLP results, SNP location, restriction sites, etc.
+    - Customize the function based on the specific results obtained from your analyses.
+    """
     for key, value in sub.items():
         globals()[key] = value
     enzymes_results = {}
@@ -393,22 +588,86 @@ def report_submission(sub):
     return report
 
 #--------------------------------------------------------------------------------
-def processing():
-    path_list = os.listdir('submissions/')
-    for path in path_list:
-        submissions = read_txt(f'submissions/{path}')
-        prepared_submissions = [prepare_submission(sub) for sub in submissions]
-        report = ''
-        for sub in prepared_submissions:
-            report += report_submission(sub)
-            report += f"{'#'*150}\n"
-        with open(f'results/{path}','w', encoding='utf-8') as f:
-            f.write(report) 
-            f.close()
+def processing(input_file, output_file, email):
+    """
+    Processes DNA sequence submissions from an input file and generates a report.
+
+    Parameters:
+    - input_file (str): Path to the input file containing DNA sequence submissions in TXT format.
+    - output_file (str): Path to the output file where the report will be saved.
+    - email (str): Email address used for accessing NCBI Entrez services.
+
+    Returns:
+    None: The function processes submissions and writes the report to the specified output file.
+
+    Example:
+    ```python
+    input_path = "submissions.txt"
+    output_path = "report.txt"
+    user_email = "user@example.com"
+    processing(input_path, output_path, user_email)
+    ```
+
+    Note:
+    - The function reads DNA sequence submissions from the input file, processes them, and generates a report.
+    - Each submission is prepared using the prepare_submission function.
+    - The report includes details on RFLP results, SNP location, restriction sites, etc.
+    - The final report is written to the specified output file.
+    """
+    Entrez.email = email
+    submissions = read_txt(input_file)
+    prepared_submissions = [prepare_submission(sub) for sub in submissions]
+    report = ''
+    for sub in prepared_submissions:
+        report += report_submission(sub)
+        report += f"{'#'*150}\n"
+    with open(output_file,'w', encoding='utf-8') as f:
+        f.write(report) 
+        f.close()
 
 
 #--------------------------------------------------------------------------------
 def main():
-    processing()
+    """
+    Main entry point for the RFLP enzyme analysis tool.
+
+    Parses command-line arguments, processes DNA sequence submissions, and generates a report.
+
+    Usage:
+    ```
+    python Res_Enzyme.py <submission_file> <result_file> [--email <your_email>]
+    ```
+
+    Parameters:
+    - submission_file (str): Path to the input file containing DNA sequence submissions in TXT format.
+    - result_file (str): Path to the output file where the report will be saved.
+    - --email (str, optional): Your email address required for accessing NCBI Entrez services.
+      If not provided, the default email 'A.N.Other@example.com' will be used.
+
+    Returns:
+    None: The function processes submissions and writes the report to the specified output file.
+
+    Example:
+    ```bash
+    python Res_Enzyme.py submissions.txt report.txt --email user@example.com
+    ```
+
+    Note:
+    - This tool analyzes DNA sequence submissions, identifies RFLP enzymes, and generates a report.
+    - Ensure that the Biopython library and required dependencies are installed before running the tool.
+    - The results are saved to the specified output file.
+    """
+    parser = argparse.ArgumentParser(description='This is a tool for finding RFLP enzymez.')
+    parser.add_argument('submission', type=str, help='submission file(txt)')
+    parser.add_argument('result', type=str, help='result file name(txt)')
+    parser.add_argument('--email', type=str, help='Your email address', default='A.N.Other@example.com')
+    args = parser.parse_args()
+
+    input_file = args.submission 
+    output_file = args.result
+    email = args.email   
+    processing(input_file, output_file, email)
+    print(f"Processing complete. Results saved to {output_file}")
+
 if __name__ == "__main__":
     main()
