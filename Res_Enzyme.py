@@ -126,6 +126,10 @@ def get_snps_flank(rs_number, flank_length=40):
     record = Entrez.read(handle)
     res = record['DocumentSummarySet']['DocumentSummary'][0]
     snp_pos = int(res['CHRPOS_SORT'])
+    if len(res['GLOBAL_MAFS'])>0:
+        mut = res['GLOBAL_MAFS'][0]['FREQ'][0]
+    else:
+        mut = res['SPDI'].split(',')[0][-1]
     handle = Entrez.esearch(db="nucleotide", term=res['ACC'])
     record = Entrez.read(handle)
     ids = record['IdList']
@@ -135,7 +139,7 @@ def get_snps_flank(rs_number, flank_length=40):
                            rettype="gb", retmode="text")
     record = SeqIO.read(handle, "genbank")
     handle.close()
-    return str(record.seq), flank_length+1, res['SPDI'].split(':')[-1]
+    return str(record.seq), flank_length+1, mut
 
 
 #--------------------------------------------------------------------------------
@@ -498,6 +502,7 @@ def prepare_submission(sub):
     rs_num = sub.get('rs_num')
     if rs_num:
         sequence, snp_pos, mut = get_snps_flank(rs_num, 40)
+        mut = sub['mut'].get('mut', mut)
     else:
         sequence = sub.get('sequence')
         if sequence:
