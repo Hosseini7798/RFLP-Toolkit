@@ -502,7 +502,7 @@ def prepare_submission(sub):
     rs_num = sub.get('rs_num')
     if rs_num:
         sequence, snp_pos, mut = get_snps_flank(rs_num, 40)
-        mut = sub['mut'].get('mut', mut)
+        mut = sub.get('mut', mut)
     else:
         sequence = sub.get('sequence')
         if sequence:
